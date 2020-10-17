@@ -122,12 +122,12 @@ plot(TS,color=color.orange,linewidth=3,title="ATR Trailing Stoploss")
 //plotchar((smooth_price<(result + (0.5*atrval_)) and (smooth_price < nifty_open + ((multihigh-0.1)*smaatrval)/2)) ? nifty_open + ((multihigh-0.1)*smaatrval)/2 : na , color=color.maroon, char='2',location=location.absolute)
 //plot(vix)
 long = 0
-longCondition = long == 0 and (crossover(smooth_price, nifty_open + multimid*atrval_) or (smooth_price > nifty_open + multimid*atrval_ and crossover(smooth_price,ema(smooth_price,crossoverema))))
+longCondition = (crossover(smooth_price, nifty_open + multimid*atrval_)) //or (smooth_price > nifty_open + multimid*atrval_ and crossover(smooth_price,ema(smooth_price,crossoverema))))
 if (longCondition)
     strategy.entry("long", strategy.long)
     long := 1
 
-if(smooth_price < TS and long == 1)        
+if(crossunder(smooth_price, nifty_open))        
     strategy.close("long")
     long := 0
     
@@ -135,12 +135,12 @@ if(crossover(smooth_price, nifty_open + multimid*atrval_))
     long := 0
 
 short = 0
-shortCondition = short ==0 and (crossunder(smooth_price, nifty_open - multimid*atrval_) or (smooth_price < nifty_open + multimid*atrval_ and crossunder(smooth_price,ema(smooth_price,crossoverema))))
+shortCondition = (crossunder(smooth_price, nifty_open - multimid*atrval_)) //or (smooth_price < nifty_open + multimid*atrval_ and crossunder(smooth_price,ema(smooth_price,crossoverema))))
 if (shortCondition)
     strategy.entry("short", strategy.short)
     short := 1
 
-if(smooth_price > TS and short == 1)    
+if(crossover(smooth_price, nifty_open ))    
     strategy.close("short")
     short := 0
     
