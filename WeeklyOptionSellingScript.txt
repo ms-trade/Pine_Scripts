@@ -1,0 +1,152 @@
+// This source code is subject to the terms of the Mozilla Public License 2.0 at https://mozilla.org/MPL/2.0/
+// © sud14
+
+//@version=4
+strategy("WEEKLY PIVOT STRATEGY", overlay=true)
+
+// This source code is subject to the terms of the Mozilla Public License 2.0 at https://mozilla.org/MPL/2.0/
+// © sud14
+
+//@version=4
+customres = input(true, "Use Custom Resolution?")
+res = input("W",type=input.resolution)
+
+
+nifty_open = security(syminfo.tickerid,customres?res:timeframe.period, open,lookahead=barmerge.lookahead_on)
+nifty_close = security(syminfo.tickerid,customres?res:timeframe.period, barstate.isconfirmed ? close : close[1]) //,lookahead=barmerge.lookahead_on)
+nifty_high = security(syminfo.tickerid,customres?res:timeframe.period, barstate.isconfirmed ? high : high[1]) //,lookahead=barmerge.lookahead_on)
+nifty_low = security(syminfo.tickerid,customres?res:timeframe.period, barstate.isconfirmed ? low : low[1])//,lookahead=barmerge.lookahead_on)
+
+off = input(0,"Offset")
+atrinput = input(5,"ATR Value")
+multilow = input(1.15,"ATR Multiplier Low")
+multihigh = input(0.85,"ATR Multiplier High")
+multimid = input(0.5,"MID Point Multiplier")
+smaval = input(21,"SMA Length")
+smaatr = input(21,"SMA ATR Length")
+enbl20ma = input(false,"Enable 20MA filter")
+crossoverema = input(9,"EMA Crossover Length")
+ebnl_long = input(true,"Enable Longs")
+ebnl_short = input(true,"Enable Shorts")
+
+atrval = sma(na(nifty_high[1])? nifty_high-nifty_low : max(max(nifty_high - nifty_low, abs(nifty_high - nifty_close[1])), abs(nifty_low - nifty_close[1])),atrinput)
+//smaatrval_ = sma(na(nifty_high[1])? nifty_high-nifty_low : max(max(nifty_high - nifty_low, abs(nifty_high - nifty_close[1])), abs(nifty_low - nifty_close[1])),smaatr)
+
+smaatrval = security(syminfo.tickerid,customres?res:timeframe.period,atrval)
+smooth_price = sma(sma(close, ceil(3 / 2)), floor(3 / 2) + 1)
+result = ema(close,smaval)
+atrval_ = atr(smaatr)
+
+plot(nifty_open, color = color.black,linewidth=4)
+n_up = plot(nifty_open + multimid*atrval_, color = color.black,linewidth=2,style=plot.style_circles)
+n_down = plot(nifty_open - multimid*atrval_, color = color.black,linewidth=2,style=plot.style_circles)
+fill(n_up,n_down,color=color.yellow)
+
+
+plot(nifty_open + (multihigh*smaatrval),color=color.green,linewidth=2)
+plot(nifty_open - (multilow*smaatrval),color=color.blue,linewidth=2)
+
+plot(nifty_open + (multihigh*smaatrval)/2,color=color.orange,linewidth=2)
+plot(nifty_open - (multilow*smaatrval)/2,color=color.orange,linewidth=2)
+
+var int bias=1
+if crossover(smooth_price,nifty_open+ (0.5*atrval_))
+    bias:=1
+if crossunder(smooth_price,nifty_open)
+    bias:=-1
+
+//plot(result, color = color.black)
+
+p1=plot(result + (0.5*atrval_),color=color.gray,offset=off,linewidth=2)
+p2=plot(result - (0.5*atrval_),color=color.gray,offset=off,linewidth=2)
+fill(p1,p2,color.gray)
+
+
+//plot(smooth_price>nifty_open and (smooth_price > nifty_open + (multihigh*smaatrval)/2) ? nifty_open - (multilow*smaatrval)/2 : na , color=color.blue, style=plot.style_cross,linewidth=3)
+//plot(smooth_price>nifty_open + (multihigh*smaatrval)/2 and (smooth_price < nifty_open + (multihigh*smaatrval)) ? nifty_open : na , color=color.maroon, style=plot.style_cross,linewidth=3)
+//plot(smooth_price>nifty_open + (multihigh*smaatrval)/2  ? nifty_open : na , color=color.blue, style=plot.style_cross,linewidth=3)
+
+//plot(smooth_price<nifty_open and (smooth_price < nifty_open - (multilow*smaatrval)/2) ? nifty_open + (multihigh*smaatrval)/2 : na , color=color.maroon, style=plot.style_cross,linewidth=3)
+//plot(smooth_price<nifty_open - (multilow*smaatrval)/2 ? nifty_open : na , color=color.maroon, style=plot.style_cross,linewidth=3)
+//plot(smooth_price<nifty_open - (multilow*smaatrval)/2 and (smooth_price > nifty_open - (multilow*smaatrval)) ? nifty_open : na , color=color.maroon, style=plot.style_cross,linewidth=3)
+
+//Edges Selling
+//plot(smooth_price > nifty_open  ? nifty_open - (multilow*smaatrval) : na , color=color.blue, style=plot.style_cross,linewidth=3)
+//plot(smooth_price < nifty_open  ? nifty_open + (multihigh*smaatrval) : na , color=color.maroon, style=plot.style_cross,linewidth=3)
+
+sm_price = plot(smooth_price,color=color.maroon)
+ema8 = plot(ema(smooth_price,crossoverema),color=color.fuchsia)
+//fill(sm_price,ema8,color=smooth_price > ema(smooth_price,8) and smooth_price > result + (0.5*atrval_) ? color.green : na)
+//fill(sm_price,ema8,color=smooth_price < ema(smooth_price,8) and smooth_price <= result - (0.5*atrval_) ? color.red : na)
+
+var charac_1_up = smooth_price > nifty_open + atrval_ ? '2' : smooth_price < nifty_open + atrval_ and smooth_price > nifty_open ? '1' : na
+var charac_2 = smooth_price < nifty_open ? '2' : '1'
+
+//plotchar(nifty_open - ((multilow+0.1))*smaatrval, char = '2',location=location.absolute,color=smooth_price > nifty_open + atrval_ ? color.black : na)
+//plotchar(nifty_open - ((multilow+0.1))*smaatrval, char = '1',location=location.absolute,color=smooth_price < nifty_open + atrval_ and smooth_price > nifty_open ? color.black : na)
+//plotchar(nifty_open - ((multilow+0.1))*smaatrval, char = '1',location=location.absolute,color=smooth_price < nifty_open and smooth_price>nifty_open - (multilow*smaatrval)/2? color.black : na)
+
+//////////////////////////////////////////////////////////EDGE SELLING/////////////////////////////////////////////////////////////////////////////////////////////////////////
+plotchar(nifty_open + (multihigh+0.1)*smaatrval, char = '2',location=location.absolute,color=smooth_price < nifty_open - multimid*atrval_ ? color.black : na)
+plotchar(nifty_open + (multihigh+0.1)*smaatrval, char = '1',location=location.absolute,color=smooth_price > nifty_open - multimid*atrval_ and smooth_price < nifty_open + multimid*atrval_ ? color.black : na)
+
+plotchar(nifty_open - (multilow+0.1)*smaatrval, char = '2',location=location.absolute,color=smooth_price > nifty_open + multimid*atrval_ ? color.black : na)
+plotchar(nifty_open - (multilow+0.1)*smaatrval, char = '1',location=location.absolute,color=smooth_price < nifty_open + multimid*atrval_ and smooth_price > nifty_open - multimid*atrval_ ? color.black : na)
+//////////////////////////////////////////////////////////EDGE SELLING/////////////////////////////////////////////////////////////////////////////////////////////////////////
+
+
+//////////////////////////////////////////////////////////MID BANDS SELLING/////////////////////////////////////////////////////////////////////////////////////////////////////////
+//plotchar(nifty_open + ((multihigh+0.2)*smaatrval)/2, char = '2',location=location.absolute,color=smooth_price < nifty_open - multimid*atrval_ ? color.black : na)
+plotchar(nifty_open + ((multihigh+0.2)*smaatrval)/2, char = '1',location=location.absolute,color=smooth_price < nifty_open - (multilow*smaatrval)/2 ? color.black : na)
+
+plotchar(nifty_open - ((multilow+0.1)*smaatrval)/2, char = '2',location=location.absolute,color=smooth_price > nifty_open + (multilow*smaatrval)/2 ? color.black : na)
+//plotchar(nifty_open - ((multilow+0.1)*smaatrval)/2, char = '1',location=location.absolute,color=smooth_price < nifty_open + multimid*atrval_ and smooth_price > nifty_open - multimid*atrval_ ? color.black : na)
+//////////////////////////////////////////////////////////MID BANDS SELLING/////////////////////////////////////////////////////////////////////////////////////////////////////////
+
+////ATR Trailing stop
+temp = input(false,title="ATR TRAILING STOP PARAMS")
+Atr=input(defval=5,title="Atr Period",minval=1,maxval=500)
+Hhv=input(defval=10,title="HHV Period",minval=1,maxval=500)
+Mult=input(defval=1.5,title="Multiplier",minval=0.1)
+
+
+TS=highest(high-Mult*atr(Atr),Hhv),barssince(close>highest(high-Mult*atr(Atr),Hhv) and close>close)
+Color=iff(close>TS,color.green,iff(close<TS,color.red,color.black))
+
+plot(TS,color=color.orange,linewidth=3,title="ATR Trailing Stoploss")
+//plotchar(nifty_open + ((multihigh+0.1))*smaatrval, char = '1',location=location.absolute,color=smooth_price > nifty_open and smooth_price<nifty_open + (multihigh*smaatrval)/2? color.black : na)
+
+//plotchar((smooth_price>(result - (0.5*atrval_)) and (smooth_price > nifty_open)) ? nifty_open - ((multilow+0.1)*smaatrval) : na , color=color.blue, char='2',location=location.absolute)
+//plotchar((smooth_price>(result - (0.5*atrval_)) and (smooth_price > nifty_open + ((multilow+0.1)*smaatrval)/2)) ? nifty_open - ((multilow+0.1)*smaatrval)/2 : na , color=color.maroon, char='2',location=location.absolute)
+//plotchar((smooth_price<(result + (0.5*atrval_)) and (smooth_price < nifty_open)) ? nifty_open + ((multihigh-0.1)*smaatrval) : na , color=color.aqua, char='2',location=location.absolute)
+//plotchar((smooth_price<(result + (0.5*atrval_)) and (smooth_price < nifty_open + ((multihigh-0.1)*smaatrval)/2)) ? nifty_open + ((multihigh-0.1)*smaatrval)/2 : na , color=color.maroon, char='2',location=location.absolute)
+//plot(vix)
+long = 0
+longCondition = long == 0 and (crossover(smooth_price, nifty_open + multimid*atrval_) or (smooth_price > nifty_open + multimid*atrval_ and crossover(smooth_price,ema(smooth_price,crossoverema))))
+if (longCondition)
+    strategy.entry("long", strategy.long)
+    long := 1
+
+if(smooth_price < TS and long == 1)        
+    strategy.close("long")
+    long := 0
+    
+if(crossover(smooth_price, nifty_open + multimid*atrval_))
+    long := 0
+
+short = 0
+shortCondition = short ==0 and (crossunder(smooth_price, nifty_open - multimid*atrval_) or (smooth_price < nifty_open + multimid*atrval_ and crossunder(smooth_price,ema(smooth_price,crossoverema))))
+if (shortCondition)
+    strategy.entry("short", strategy.short)
+    short := 1
+
+if(smooth_price > TS and short == 1)    
+    strategy.close("short")
+    short := 0
+    
+if(crossunder(smooth_price, nifty_open - multimid*atrval_))
+    short := 0
+
+//shortCondition = crossunder(sma(close, 14), sma(close, 28))
+//if (shortCondition)
+//    strategy.entry("My Short Entry Id", strategy.short)
