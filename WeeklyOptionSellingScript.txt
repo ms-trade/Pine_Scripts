@@ -2,7 +2,7 @@
 // © sud14
 
 //@version=4
-strategy("WEEKLY PIVOT STRATEGY", overlay=true)
+strategy("WEEKLY PIVOT STRATEGY", overlay=true,initial_capital=1000000, default_qty_type=strategy.fixed, default_qty_value=1, pyramiding=5)
 
 // This source code is subject to the terms of the Mozilla Public License 2.0 at https://mozilla.org/MPL/2.0/
 // © sud14
@@ -17,17 +17,36 @@ nifty_close = security(syminfo.tickerid,customres?res:timeframe.period, barstate
 nifty_high = security(syminfo.tickerid,customres?res:timeframe.period, barstate.isconfirmed ? high : high[1]) //,lookahead=barmerge.lookahead_on)
 nifty_low = security(syminfo.tickerid,customres?res:timeframe.period, barstate.isconfirmed ? low : low[1])//,lookahead=barmerge.lookahead_on)
 
-off = input(0,"Offset")
+
 atrinput = input(5,"ATR Value")
-multilow = input(1.15,"ATR Multiplier Low")
-multihigh = input(0.85,"ATR Multiplier High")
-multimid = input(0.5,"MID Point Multiplier")
+multilow = input(1,"ATR Multiplier Low")
+multihigh = input(0.75,"ATR Multiplier High")
+multimid = input(2,"MID Point Multiplier")
 smaval = input(21,"SMA Length")
 smaatr = input(21,"SMA ATR Length")
 enbl20ma = input(false,"Enable 20MA filter")
 crossoverema = input(9,"EMA Crossover Length")
 ebnl_long = input(true,"Enable Longs")
 ebnl_short = input(true,"Enable Shorts")
+// Set stop loss level with input options (optional)
+longLossPerc = input(title="Long Stop Loss (%)",type=input.float, minval=0.0, step=0.1, defval=2) //* 0.01
+shortLossPerc = input(title="Short Stop Loss (%)",type=input.float, minval=0.0, step=0.1, defval=1) //* 0.01
+// Determine stop loss price
+partialProfit = input(25,"Partial Profit Taking Level")
+longStopPrice_Init  = strategy.position_avg_price - longLossPerc*atr(14) //strategy.position_avg_price * (1 - longLossPerc)
+shortStopPrice_Init = strategy.position_avg_price + shortLossPerc*atr(14) //strategy.position_avg_price * (1 + shortLossPerc)
+
+// Plot stop loss values for confirmation
+//plot(series=(strategy.position_size > 0) ? longStopPrice : na,color=color.red, style=plot.style_cross,linewidth=2, title="Long Stop Loss")
+//plot(series=(strategy.position_size < 0) ? shortStopPrice : na, color=color.red, style=plot.style_cross,linewidth=2, title="Short Stop Loss")
+
+// Configure trail stop level with input options (optional)
+//longTrailPerc = input(title="Trail Long Loss (%)", type=input.float, minval=0.0, step=0.1, defval=3) * 0.01
+//shortTrailPerc = input(title="Trail Short Loss (%)", type=input.float, minval=0.0, step=0.1, defval=3) * 0.01
+
+longTrailPerc = input(title="Trail Long Loss (%)", type=input.float, minval=0.0, step=0.1, defval=1)
+shortTrailPerc = input(title="Trail Short Loss (%)", type=input.float, minval=0.0, step=0.1, defval=1)
+
 
 atrval = sma(na(nifty_high[1])? nifty_high-nifty_low : max(max(nifty_high - nifty_low, abs(nifty_high - nifty_close[1])), abs(nifty_low - nifty_close[1])),atrinput)
 //smaatrval_ = sma(na(nifty_high[1])? nifty_high-nifty_low : max(max(nifty_high - nifty_low, abs(nifty_high - nifty_close[1])), abs(nifty_low - nifty_close[1])),smaatr)
@@ -49,103 +68,202 @@ plot(nifty_open - (multilow*smaatrval),color=color.blue,linewidth=2)
 plot(nifty_open + (multihigh*smaatrval)/2,color=color.orange,linewidth=2)
 plot(nifty_open - (multilow*smaatrval)/2,color=color.orange,linewidth=2)
 
-var int bias=1
-if crossover(smooth_price,nifty_open+ (0.5*atrval_))
-    bias:=1
-if crossunder(smooth_price,nifty_open)
-    bias:=-1
-
-//plot(result, color = color.black)
-
-p1=plot(result + (0.5*atrval_),color=color.gray,offset=off,linewidth=2)
-p2=plot(result - (0.5*atrval_),color=color.gray,offset=off,linewidth=2)
+p1=plot(result + (0.5*atrval_),color=color.gray,linewidth=2)
+p2=plot(result - (0.5*atrval_),color=color.gray,linewidth=2)
 fill(p1,p2,color.gray)
 
 
-//plot(smooth_price>nifty_open and (smooth_price > nifty_open + (multihigh*smaatrval)/2) ? nifty_open - (multilow*smaatrval)/2 : na , color=color.blue, style=plot.style_cross,linewidth=3)
-//plot(smooth_price>nifty_open + (multihigh*smaatrval)/2 and (smooth_price < nifty_open + (multihigh*smaatrval)) ? nifty_open : na , color=color.maroon, style=plot.style_cross,linewidth=3)
-//plot(smooth_price>nifty_open + (multihigh*smaatrval)/2  ? nifty_open : na , color=color.blue, style=plot.style_cross,linewidth=3)
-
-//plot(smooth_price<nifty_open and (smooth_price < nifty_open - (multilow*smaatrval)/2) ? nifty_open + (multihigh*smaatrval)/2 : na , color=color.maroon, style=plot.style_cross,linewidth=3)
-//plot(smooth_price<nifty_open - (multilow*smaatrval)/2 ? nifty_open : na , color=color.maroon, style=plot.style_cross,linewidth=3)
-//plot(smooth_price<nifty_open - (multilow*smaatrval)/2 and (smooth_price > nifty_open - (multilow*smaatrval)) ? nifty_open : na , color=color.maroon, style=plot.style_cross,linewidth=3)
-
-//Edges Selling
-//plot(smooth_price > nifty_open  ? nifty_open - (multilow*smaatrval) : na , color=color.blue, style=plot.style_cross,linewidth=3)
-//plot(smooth_price < nifty_open  ? nifty_open + (multihigh*smaatrval) : na , color=color.maroon, style=plot.style_cross,linewidth=3)
-
 sm_price = plot(smooth_price,color=color.maroon)
 ema8 = plot(ema(smooth_price,crossoverema),color=color.fuchsia)
-//fill(sm_price,ema8,color=smooth_price > ema(smooth_price,8) and smooth_price > result + (0.5*atrval_) ? color.green : na)
-//fill(sm_price,ema8,color=smooth_price < ema(smooth_price,8) and smooth_price <= result - (0.5*atrval_) ? color.red : na)
 
-var charac_1_up = smooth_price > nifty_open + atrval_ ? '2' : smooth_price < nifty_open + atrval_ and smooth_price > nifty_open ? '1' : na
-var charac_2 = smooth_price < nifty_open ? '2' : '1'
+/////////////////////Trailing Stop Loss Calc////////////////////////////
+// Determine trail stop loss prices
+// STEP 2:
+// Determine trail stop loss prices
+longStopPrice = 0.0, shortStopPrice = 0.0
 
-//plotchar(nifty_open - ((multilow+0.1))*smaatrval, char = '2',location=location.absolute,color=smooth_price > nifty_open + atrval_ ? color.black : na)
-//plotchar(nifty_open - ((multilow+0.1))*smaatrval, char = '1',location=location.absolute,color=smooth_price < nifty_open + atrval_ and smooth_price > nifty_open ? color.black : na)
-//plotchar(nifty_open - ((multilow+0.1))*smaatrval, char = '1',location=location.absolute,color=smooth_price < nifty_open and smooth_price>nifty_open - (multilow*smaatrval)/2? color.black : na)
+longStopPrice := if (strategy.position_size > 0)
+    //stopValue = strategy.position_avg_price - longTrailPerc*atr(14) // close * (1 - longTrailPerc)
+    stopValue = close - longTrailPerc*atr(14) // close * (1 - longTrailPerc)
+    max(stopValue, longStopPrice[1])
+else
+    0
+
+shortStopPrice := if (strategy.position_size < 0)
+    //stopValue = strategy.position_avg_price + shortTrailPerc*atr(14) //close * (1 + shortTrailPerc)
+    stopValue = close + shortTrailPerc*atr(14) //close * (1 + shortTrailPerc)
+    min(stopValue, shortStopPrice[1])
+else
+    999999
+
+//longStopPrice := if (strategy.position_size > 0)
+//    stopValue = close - longTrailPerc*atr(14) // close * (1 - longTrailPerc)
+//    max(stopValue, longStopPrice[1])
+//else
+//    0
+
+//shortStopPrice := if (strategy.position_size < 0)
+//    stopValue = close - shortStopPrice*atr(14) //close * (1 + shortTrailPerc)
+//    min(stopValue, shortStopPrice[1])
+//else
+//    999999
+    
+// Plot stop loss values for confirmation
+plot(series=(strategy.position_size > 0) ? longStopPrice : na,color=color.fuchsia, style=plot.style_cross,linewidth=2, title="Long Trail Stop")
+plot(series=(strategy.position_size < 0) ? shortStopPrice : na,color=color.orange, style=plot.style_cross,linewidth=2, title="Short Trail Stop")
+////////////////////////////////////////////////////////////////////////
+
 
 //////////////////////////////////////////////////////////EDGE SELLING/////////////////////////////////////////////////////////////////////////////////////////////////////////
-plotchar(nifty_open + (multihigh+0.1)*smaatrval, char = '2',location=location.absolute,color=smooth_price < nifty_open - multimid*atrval_ ? color.black : na)
-plotchar(nifty_open + (multihigh+0.1)*smaatrval, char = '1',location=location.absolute,color=smooth_price > nifty_open - multimid*atrval_ and smooth_price < nifty_open + multimid*atrval_ ? color.black : na)
+//plotchar(nifty_open + (multihigh+0.1)*smaatrval, char = '2',location=location.absolute,color=smooth_price < nifty_open - multimid*atrval_ ? color.black : na)
+//plotchar(nifty_open + (multihigh+0.1)*smaatrval, char = '1',location=location.absolute,color=smooth_price > nifty_open - multimid*atrval_ and smooth_price < nifty_open + multimid*atrval_ ? color.black : na)
+//Less Aggressive
+plotchar(nifty_open + (multihigh+0.1)*smaatrval, char = '2',location=location.absolute,color=smooth_price < nifty_open - multimid*atrval_  and smooth_price < result + (0.5*atrval_) ? color.black : na)
+plotchar(nifty_open + (multihigh+0.1)*smaatrval, char = '1',location=location.absolute,color=smooth_price < nifty_open + multimid*atrval_  and smooth_price > nifty_open - multimid*atrval_ ? color.black : na)
+//plotchar(nifty_open + (multihigh+0.1)*smaatrval, char = '1',location=location.absolute,color=smooth_price > nifty_open  and smooth_price < nifty_open + multimid*atrval_ ? color.black : na)
 
-plotchar(nifty_open - (multilow+0.1)*smaatrval, char = '2',location=location.absolute,color=smooth_price > nifty_open + multimid*atrval_ ? color.black : na)
-plotchar(nifty_open - (multilow+0.1)*smaatrval, char = '1',location=location.absolute,color=smooth_price < nifty_open + multimid*atrval_ and smooth_price > nifty_open - multimid*atrval_ ? color.black : na)
+//plotchar(nifty_open - (multilow+0.1)*smaatrval, char = '2',location=location.absolute,color=smooth_price > nifty_open + multimid*atrval_  ? color.black : na)
+//plotchar(nifty_open - (multilow+0.1)*smaatrval, char = '1',location=location.absolute,color=smooth_price < nifty_open + multimid*atrval_ and smooth_price > nifty_open - multimid*atrval_ ? color.black : na)
+//Less Aggressive
+plotchar(nifty_open - (multilow+0.1)*smaatrval, char = '2',location=location.absolute,color=smooth_price > nifty_open + multimid*atrval_ and smooth_price > result - (0.5*atrval_) ? color.black : na)
+plotchar(nifty_open - (multilow+0.1)*smaatrval, char = '1',location=location.absolute,color=smooth_price < nifty_open and smooth_price > nifty_open - multimid*atrval_ ? color.black : na)
 //////////////////////////////////////////////////////////EDGE SELLING/////////////////////////////////////////////////////////////////////////////////////////////////////////
 
 
 //////////////////////////////////////////////////////////MID BANDS SELLING/////////////////////////////////////////////////////////////////////////////////////////////////////////
-//plotchar(nifty_open + ((multihigh+0.2)*smaatrval)/2, char = '2',location=location.absolute,color=smooth_price < nifty_open - multimid*atrval_ ? color.black : na)
 plotchar(nifty_open + ((multihigh+0.2)*smaatrval)/2, char = '1',location=location.absolute,color=smooth_price < nifty_open - (multilow*smaatrval)/2 ? color.black : na)
-
 plotchar(nifty_open - ((multilow+0.1)*smaatrval)/2, char = '2',location=location.absolute,color=smooth_price > nifty_open + (multilow*smaatrval)/2 ? color.black : na)
-//plotchar(nifty_open - ((multilow+0.1)*smaatrval)/2, char = '1',location=location.absolute,color=smooth_price < nifty_open + multimid*atrval_ and smooth_price > nifty_open - multimid*atrval_ ? color.black : na)
 //////////////////////////////////////////////////////////MID BANDS SELLING/////////////////////////////////////////////////////////////////////////////////////////////////////////
+//smooth_price := close
 
-////ATR Trailing stop
-temp = input(false,title="ATR TRAILING STOP PARAMS")
-Atr=input(defval=5,title="Atr Period",minval=1,maxval=500)
-Hhv=input(defval=10,title="HHV Period",minval=1,maxval=500)
-Mult=input(defval=1.5,title="Multiplier",minval=0.1)
+/////////////////////////////R2TS CALCULATION ////////////////////////////////
+_2          = input(false, "======= A2RTS")
+A2RTSlength = input(21, "A2RTS Length")
+A2RTSgamma  = input(1.2, "A2RTS Gamma")
+A2RTSsrc    = smooth_price//input(close, "A2RTS Source", input.source)
 
 
-TS=highest(high-Mult*atr(Atr),Hhv),barssince(close>highest(high-Mult*atr(Atr),Hhv) and close>close)
-Color=iff(close>TS,color.green,iff(close<TS,color.red,color.black))
+//A2RTS Calculations
+maa = 0.
+osa = 0.
+//----
+er = abs(change(A2RTSsrc,A2RTSlength))/sum(abs(change(A2RTSsrc)),A2RTSlength)
+ama(x)=>
+    a = 0.
+    a := er*x+(1-er)*nz(a[1],x)
+//----
+d = cum(abs(A2RTSsrc - nz(maa[1],A2RTSsrc)))/(cum(1)-1) * A2RTSgamma
+maa := ama(ama(A2RTSsrc > nz(maa[1],A2RTSsrc) + d ? A2RTSsrc + d : A2RTSsrc < nz(maa[1],A2RTSsrc) - d ? A2RTSsrc - d : nz(maa[1],A2RTSsrc)))
+//----
+upper = maa + d
+lower = maa - d
+osa := A2RTSsrc > upper[1] ? 1 : A2RTSsrc < lower[1] ? 0 : osa[1]
+ts = osa*lower+(1-osa)*upper
+//////////////////////////////////////////////////////////////////////////////
 
-plot(TS,color=color.orange,linewidth=3,title="ATR Trailing Stoploss")
-//plotchar(nifty_open + ((multihigh+0.1))*smaatrval, char = '1',location=location.absolute,color=smooth_price > nifty_open and smooth_price<nifty_open + (multihigh*smaatrval)/2? color.black : na)
+/////////////////////////////QQE/////////////////////////////////////////////
+src = close
+Fast = 2.6180
+Slow = 4.2360
+RSI = 14
+SF = 1
 
-//plotchar((smooth_price>(result - (0.5*atrval_)) and (smooth_price > nifty_open)) ? nifty_open - ((multilow+0.1)*smaatrval) : na , color=color.blue, char='2',location=location.absolute)
-//plotchar((smooth_price>(result - (0.5*atrval_)) and (smooth_price > nifty_open + ((multilow+0.1)*smaatrval)/2)) ? nifty_open - ((multilow+0.1)*smaatrval)/2 : na , color=color.maroon, char='2',location=location.absolute)
-//plotchar((smooth_price<(result + (0.5*atrval_)) and (smooth_price < nifty_open)) ? nifty_open + ((multihigh-0.1)*smaatrval) : na , color=color.aqua, char='2',location=location.absolute)
-//plotchar((smooth_price<(result + (0.5*atrval_)) and (smooth_price < nifty_open + ((multihigh-0.1)*smaatrval)/2)) ? nifty_open + ((multihigh-0.1)*smaatrval)/2 : na , color=color.maroon, char='2',location=location.absolute)
-//plot(vix)
+WiMA(src, length) =>
+    MA_s = 0.0
+    MA_s := (src + nz(MA_s[1] * (length - 1))) / length
+    MA_s
+
+RSIndex = wma(rsi(sma(src,3), RSI), SF)
+
+//{Smoothed ATR of Smoothed RSI}
+TH = iff(RSIndex[1] > RSIndex, RSIndex[1], RSIndex)
+TL = iff(RSIndex[1] < RSIndex, RSIndex[1], RSIndex)
+TR = TH - TL
+
+AtrRsi = WiMA(TR, 14)
+SmoothedAtrRsi = WiMA(AtrRsi, 14)
+
+//{Fast and Slow ATR Trailing Levels} 
+
+DeltaFastAtrRsi = SmoothedAtrRsi * Fast
+newshortband = 0.0
+newlongband = 0.0
+longband = 0.0
+shortband = 0.0
+trend = 0.0
+
+newshortband1 = 0.0
+newlongband1 = 0.0
+longband1 = 0.0
+shortband1 = 0.0
+trend1 = 0.0
+
+newshortband := RSIndex + DeltaFastAtrRsi
+newlongband := RSIndex - DeltaFastAtrRsi
+longband := RSIndex[1] > longband[1] and RSIndex > longband[1] ? 
+   max(longband[1], newlongband) : newlongband
+shortband := RSIndex[1] < shortband[1] and RSIndex < shortband[1] ? 
+   min(shortband[1], newshortband) : newshortband
+cross_1 = cross(longband[1], RSIndex)
+trend := cross(RSIndex, shortband[1]) ? 1 : cross_1 ? -1 : nz(trend[1], 1)
+FastAtrRsiTL = trend == 1 ? longband : shortband
+
+DeltaSlowAtrRsi = SmoothedAtrRsi * Slow
+
+newshortband1 := RSIndex + DeltaSlowAtrRsi
+newlongband1 := RSIndex - DeltaSlowAtrRsi
+
+longband1 := RSIndex[1] > longband1[1] and RSIndex > longband1[1] ? 
+   max(longband1[1], newlongband1) : newlongband1
+shortband1 := RSIndex[1] < shortband1[1] and RSIndex < shortband1[1] ? 
+   min(shortband1[1], newshortband1) : newshortband1
+
+cross_2 = cross(longband1[1], RSIndex)
+trend1 := cross(RSIndex, shortband1[1]) ? 1 : cross_2 ? -1 : nz(trend1[1], 1)
+SlowAtrRsiTL = trend1 == 1 ? longband1 : shortband1
+/////////////////////////////////////////////////////////////////////////////
+
+//factor = input(1.0,"SL Factor")
+//stoplevel = atr(14)
 long = 0
-longCondition = (crossover(smooth_price, nifty_open + multimid*atrval_)) //or (smooth_price > nifty_open + multimid*atrval_ and crossover(smooth_price,ema(smooth_price,crossoverema))))
+//A2RTS based strategy
+//longCondition = (crossover(smooth_price, nifty_open + multimid*atrval_) or (smooth_price > nifty_open + multimid*atrval_ and crossover(ts,smooth_price))) //or (smooth_price > nifty_open + multimid*atrval_ and crossover(smooth_price,ema(smooth_price,crossoverema))))
+//QQE based strategy
+longCondition = (crossover(smooth_price, nifty_open + multimid*atrval_) or (smooth_price > nifty_open + multimid*atrval_ and crossover(RSIndex,FastAtrRsiTL))) //or (smooth_price > nifty_open + multimid*atrval_ and crossover(smooth_price,ema(smooth_price,crossoverema))))
 if (longCondition)
     strategy.entry("long", strategy.long)
     long := 1
 
-if(crossunder(smooth_price, nifty_open))        
-    strategy.close("long")
-    long := 0
-    
-if(crossover(smooth_price, nifty_open + multimid*atrval_))
-    long := 0
+//if(crossunder(smooth_price, nifty_open))        
+//    strategy.close("long")
+//    long := 0
+strategy.close("long", when = crossunder(smooth_price, nifty_open))// or crossunder(smooth_price, longStopPrice)) // or crossover(smooth_price,result + (0.5*atrval_)))
+   
+//if(crossover(smooth_price, nifty_open + multimid*atrval_))
+//    long := 0
 
 short = 0
-shortCondition = (crossunder(smooth_price, nifty_open - multimid*atrval_)) //or (smooth_price < nifty_open + multimid*atrval_ and crossunder(smooth_price,ema(smooth_price,crossoverema))))
+//A2RTS based strategy
+//shortCondition = (crossunder(smooth_price, nifty_open - multimid*atrval_) or (smooth_price < nifty_open - multimid*atrval_ and crossunder(ts,smooth_price))) //or (smooth_price < nifty_open + multimid*atrval_ and crossunder(smooth_price,ema(smooth_price,crossoverema))))
+//QQE based strategy
+shortCondition = (crossunder(smooth_price, nifty_open - multimid*atrval_) or (smooth_price < nifty_open - multimid*atrval_ and crossunder(RSIndex,FastAtrRsiTL))) //or (smooth_price < nifty_open + multimid*atrval_ and crossunder(smooth_price,ema(smooth_price,crossoverema))))
 if (shortCondition)
     strategy.entry("short", strategy.short)
     short := 1
 
-if(crossover(smooth_price, nifty_open ))    
-    strategy.close("short")
-    short := 0
+//if(crossover(smooth_price, nifty_open ))    
+//    strategy.close("short")
+//    short := 0
+strategy.close("short", when = crossover(smooth_price, nifty_open))// or crossunder(smooth_price, shortStopPrice)) // or crossunder(smooth_price,result + (0.5*atrval_)))
     
-if(crossunder(smooth_price, nifty_open - multimid*atrval_))
-    short := 0
+//if(crossunder(smooth_price, nifty_open - multimid*atrval_))
+//    short := 0
+    
+if (strategy.position_size > 0)
+    strategy.exit(id="long", qty_percent = partialProfit,stop=longStopPrice)//,profit=2*atr(14))
+
+if (strategy.position_size < 0)
+    strategy.exit(id="short", stop=shortStopPrice,qty_percent = partialProfit)
 
 //shortCondition = crossunder(sma(close, 14), sma(close, 28))
 //if (shortCondition)
